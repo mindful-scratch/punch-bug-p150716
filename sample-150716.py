@@ -19,6 +19,10 @@ while True:
     axes = adxl345.getAxes(True)
     a = math.sqrt( axes['x']**2 + axes['y']**2) * 100
 
+    def request(param):
+        conn = httplib.HTTPSConnection("hinoqi.sakura.ne.jp")
+        conn.request("GET", "/particle/push.php?p=" + str(param))
+
     if a < 30:
         a = 0
         # 1秒以内は「停止」にならない
@@ -28,6 +32,7 @@ while True:
             # print "stopped"
             last_time_status_changed = time.time()
             sys.stdout.write("\r stopped      ")
+            request(0)
     elif 100 < a:
         a = 100
         time_moving_fast = time.time()
@@ -38,6 +43,7 @@ while True:
             # print "moving fast"
             last_time_status_changed = time.time()
             sys.stdout.write("\r moving fast  ")
+            request(100)
     else:
         # 1秒以内は「遅い」にならない
         if status is not MOVING_SLOWLY \
@@ -46,6 +52,7 @@ while True:
             # print "moving slowly"
             last_time_status_changed = time.time()
             sys.stdout.write("\r moving slowly")
+            request(50)
 
     # sys.stdout.write("\r%f" % last_time_status_stopped)
     # sys.stdout.write(
