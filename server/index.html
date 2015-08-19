@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>打撃力に応じたパーティクルアニメーション</title>
+  <script type="text/javascript" src="jquery-1.11.3.min.js"></script>
+  <script>
+    (function worker() {
+      //できれば最初しか実行されない
+      if ( first_launch === false){
+        $.ajax({
+          url: './push.php',
+          type: 'GET',
+          data: {
+            "p": 0
+          },
+          success: function(data) {
+            first_launch = true;
+          },
+          fail: function(data){
+            // Schedule the next request when the current one's complete
+            setTimeout(worker, 100);
+          }
+        });
+      }
+
+      $.ajax({
+        url: './listen.php',
+        type: 'GET',
+        data: {
+          "date": parseInt(start_date, 10)
+        },
+        success: function(data) {
+          if ( data ) {
+            power = data;
+          }
+        },
+        complete: function() {
+          // Schedule the next request when the current one's complete
+          setTimeout(worker, 100);
+        }
+      });
+    })();
+
+    /*
+     * 参考：http://jsdo.it/akiho/ogxo からの「Fork」
+     */
+
+    //グローバル関数
+    var center = {x: 0, y: 0};
+    var circleRadius = 80;
+    var holeRadius = 10;
+    var particlesNum = 400;
+
+    //現在時のUNIX TIMESTAMPを取得する
+    var first_launch = false;
+    var start_date = Math.floor( new Date().getTime() / 1000 );
+
+    var width;
+    var height;
+
+    var ctx;
+
+    var particles = [];
+
+    var power = 0;  //打撃力
+
+    var isMouseDown = false;
+    var tmp;
+
+    //初期処理
+    window.onload = function(){
+      var canvas = document.getElementById("canvas");
+
+      //画面調整
+      canvas.width = width = window.innerWidth;
+      canvas.height = height = window.innerHeight;
+
+      center.x = width / 2;
+      center.y = height / 2;
+
+      ctx = canvas.getContext("2d");
+      ctx.fillStyle = "rgb(0, 0, 0)";
+      ctx.fillRect(0, 0, width, height);
+
+      //マウス操作処理
+      canvas.addEventListener("mousedown", function(e) {
+        if (e.which === 3) { // right click = 3, left click = 1
+          power = 0;
+        }
+        else if (e.which === 1){
+          power+=10;
+          if ( power > 100){
+            power = 0;
+          }
+        }
+      });
+      // prevent context menu show up
+      canvas.addEventListener('contextmenu', function(e) {
+        e.preventDefault();
+      }, false);
+
+      //particleの作成
+      for(var i = 0; i < particlesNum; i++){
+        particles.push(new Particle());
+      }
+      //アニメーション
+      setInterval(loop, 1000 / 50);
+    };
+
+    //デバッグテスト文字表示
+    function updateText(){
+      ctx.font= '20pt Arial';
+      ctx.fillStyle = '#fff';
+      ctx.fillText('p: ' + String(power), 100, 100);
+    }
+
+    //loop関数
+    function loop(){
+      ctx.fillStyle = "rgba(0, 0, 0, 0.2)";
+      ctx.fillRect(0, 0, width, height);
+
+      for(var i = 0; i < particles.length; i++){
+        var particle = particles[i];
+        particle.update();
+        particle.draw();
+      }
+    }
+
+    //Particleクラス
+    var Particle = (function(){
+      function Particle(){
+        this.generate();
+      }
+
+      Particle.prototype.generate = function(fadeBack){
+        this.angle = 2 * Math.random() * Math.PI;
+        tmp = Math.random() * 15;
+
+        if(power > 90){
+          this.radius = (Math.random() * 5) + 5;
+          this.x = center.x + circleRadius * Math.cos(this.angle);
+          this.y = center.y + circleRadius * Math.sin(this.angle);
+
+          this.xSpeed = 10 * Math.cos(this.angle);
+          this.ySpeed = 10 * Math.sin(this.angle);
+
+          //打撃された状態
+          this.xAccel = Math.cos(this.angle) - 0.05;
+          this.yAccel = Math.sin(this.angle) - 0.05;
+        }
+        else{
+          this.radius = Math.random() * 3 + 5;
+          this.opacity = 1.0;
+          // power = 10; //normal
+          this.x = center.x + power * 2 * Math.cos(this.angle);  //通常状態のサークルサイズ
+          this.y = center.y + power * 2 * Math.sin(this.angle);
+
+          this.xSpeed = tmp * Math.cos(this.angle);
+          this.ySpeed = tmp * Math.sin(this.angle);
+
+          //通常状態
+          this.xAccel = -Math.cos(this.angle);
+          this.yAccel = -Math.sin(this.angle);
+        }
+        this.color = "rgba(" + Math.floor(Math.random() * 255) + "," +
+                     Math.floor(Math.random() * 255) + "," +
+                     Math.floor(Math.random() * 255) + "," +
+                     this.radius / 6 + ")";
+      };
+
+      Particle.prototype.update = function(){
+        this.x += this.xSpeed;
+        this.y += this.ySpeed;
+
+        if ( power == 100 ) {
+          this.xSpeed += (this.xAccel+0.09);  //打撃時の加速度調整（normal: 0.09）
+          this.ySpeed += (this.yAccel+0.09);
+        }
+        else{
+          this.xSpeed += this.xAccel;
+          this.ySpeed += this.yAccel;
+        }
+
+        if(this.check()){
+          this.generate();
+        }
+
+        //デバッグテキスト表示
+        updateText();
+
+      };
+
+      Particle.prototype.check = function(){
+        if(this.x < 0 || this.x > width){
+          if(power <= 80){
+            this.generate();
+          }
+        }
+        else if(this.y < 0 || this.y > height){
+          if(power <= 80){
+            this.generate();
+          }
+        }
+        var distance = ((tmp = (center.x - this.x)) * tmp) +
+                       ((tmp = (center.y - this.y)) * tmp);
+
+        this.opacity = 10000 / distance;
+        if (1 < this.opacity) {
+          this.opacity = 1
+        }
+        this.opacity = 1 - this.opacity;
+
+        return ((distance < holeRadius * holeRadius));
+
+      };
+
+      Particle.prototype.draw = function(){
+        ctx.fillStyle = this.color;
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2, false);
+        ctx.fill();
+      };
+
+      return Particle;
+
+    })();
+
+  </script>
+</head>
+<body>
+
+<canvas id='canvas'></canvas>
+
+</body>
+</html>
