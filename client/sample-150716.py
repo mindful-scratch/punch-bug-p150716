@@ -1,4 +1,6 @@
-# coding=utf-8
+#!/usr/bin/env python
+
+#  coding=utf-8
 
 from adxl345 import ADXL345
 import math, httplib, time, threading
