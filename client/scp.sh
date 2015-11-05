@@ -1,1 +1,2 @@
-scp -P 22 * pi@coder:/home/pi/punch-bug-p150716/
+#!/usr/bin/env bash
+scp -P 22 * pi@coder.local:/home/pi/punch-bug-p150716/
